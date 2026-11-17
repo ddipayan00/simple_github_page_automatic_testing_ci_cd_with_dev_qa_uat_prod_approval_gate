@@ -26,6 +26,13 @@ export function formatBuildTime(iso) {
   return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
 
+export function commitUrl(env) {
+  const { repo, sha } = env ?? {};
+  if (typeof repo !== "string" || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return null;
+  if (typeof sha !== "string" || !/^[0-9a-f]{7,40}$/i.test(sha)) return null;
+  return `https://github.com/${repo}/commit/${sha}`;
+}
+
 export function pageTitle(env) {
   const current = findEnvironment(env?.name);
   return `Hello from ${current ? current.label : "local"}`;
@@ -50,6 +57,8 @@ export function render(doc, env) {
   byId("title").textContent = pageTitle(env);
   byId("commit").textContent = shortSha(env?.sha);
   byId("built-at").textContent = formatBuildTime(env?.builtAt);
+  const url = commitUrl(env);
+  if (url) byId("commit").setAttribute("href", url);
 
   const steps = pipelineSteps(current?.name).map((step) => {
     const li = doc.createElement("li");

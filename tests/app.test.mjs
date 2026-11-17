@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   ELEMENT_IDS,
   ENVIRONMENTS,
+  commitUrl,
   findEnvironment,
   formatBuildTime,
   pageTitle,
@@ -68,6 +69,19 @@ describe("formatBuildTime", () => {
   });
 });
 
+describe("commitUrl", () => {
+  it("links to the commit on GitHub", () => {
+    assert.equal(commitUrl({ repo: "octo/site", sha: "abcdef1234567" }), "https://github.com/octo/site/commit/abcdef1234567");
+  });
+
+  it("returns null when the repo or commit is missing or invalid", () => {
+    assert.equal(commitUrl({ repo: "", sha: "abcdef1234567" }), null);
+    assert.equal(commitUrl({ repo: "octo/site", sha: "" }), null);
+    assert.equal(commitUrl({ repo: "javascript:alert(1)//x", sha: "abcdef1234567" }), null);
+    assert.equal(commitUrl(undefined), null);
+  });
+});
+
 describe("pageTitle", () => {
   it("names the environment", () => {
     assert.equal(pageTitle({ name: "prod" }), "Hello from Production");
@@ -97,7 +111,7 @@ describe("pipelineSteps", () => {
 describe("render", () => {
   it("fills in the page for a deployed environment", () => {
     const doc = fakeDocument();
-    render(doc, { name: "uat", sha: "abcdef1234567", builtAt: "2026-11-17T08:00:00Z" });
+    render(doc, { name: "uat", sha: "abcdef1234567", repo: "octo/site", builtAt: "2026-11-17T08:00:00Z" });
 
     assert.equal(doc.documentElement.dataset.env, "uat");
     assert.equal(doc.title, "Hello from UAT · CI/CD demo");
@@ -105,6 +119,7 @@ describe("render", () => {
     assert.equal(doc.elements.title.textContent, "Hello from UAT");
     assert.equal(doc.elements.commit.textContent, "abcdef1");
     assert.equal(doc.elements["built-at"].textContent, "2026-11-17 08:00 UTC");
+    assert.equal(doc.elements.commit.attributes.href, "https://github.com/octo/site/commit/abcdef1234567");
 
     const steps = doc.elements.pipeline.children;
     assert.deepEqual(steps.map((li) => li.textContent), ["DEV", "QA", "UAT", "PROD"]);
@@ -121,5 +136,6 @@ describe("render", () => {
     assert.equal(doc.elements["env-badge"].textContent, "Local preview");
     assert.equal(doc.elements.commit.textContent, "local");
     assert.equal(doc.elements["built-at"].textContent, "not built");
+    assert.equal(doc.elements.commit.attributes.href, undefined, "a local preview has nothing to link to");
   });
 });

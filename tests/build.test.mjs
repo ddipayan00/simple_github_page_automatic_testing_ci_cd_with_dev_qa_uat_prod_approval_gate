@@ -17,10 +17,10 @@ describe("build", () => {
   for (const { name } of ENVIRONMENTS) {
     it(`builds ${name} with its own env.js`, async () => {
       const out = join(tmp, name);
-      await build({ env: name, sha: SHA, out, builtAt: "2026-11-17T10:00:00.000Z" });
+      await build({ env: name, sha: SHA, repo: "octo/site", out, builtAt: "2026-11-17T10:00:00.000Z" });
 
       const { ENV } = await import(pathToFileURL(join(out, "env.js")).href);
-      assert.deepEqual({ ...ENV }, { name, sha: SHA, builtAt: "2026-11-17T10:00:00.000Z" });
+      assert.deepEqual({ ...ENV }, { name, sha: SHA, repo: "octo/site", builtAt: "2026-11-17T10:00:00.000Z" });
       assert.ok(Object.isFrozen(ENV));
     });
   }
@@ -48,6 +48,21 @@ describe("build", () => {
     await assert.rejects(build({ env: "dev", sha: "main; rm -rf /", out: join(tmp, "y") }), /Invalid commit SHA/);
   });
 
+  it("rejects an invalid repository name", async () => {
+    await assert.rejects(build({ env: "dev", repo: "not a repo", out: join(tmp, "r") }), /Invalid repository/);
+  });
+
+  it("CLI takes the repository from GITHUB_REPOSITORY, as set by GitHub Actions", async () => {
+    const out = join(tmp, "cli-repo");
+    const result = spawnSync(process.execPath, ["scripts/build.mjs", "--env", "dev", "--out", out], {
+      encoding: "utf8",
+      env: { ...process.env, GITHUB_REPOSITORY: "octo/site" },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const { ENV } = await import(pathToFileURL(join(out, "env.js")).href);
+    assert.equal(ENV.repo, "octo/site");
+  });
+
   it("CLI exits non-zero for an unknown environment", () => {
     const result = spawnSync(process.execPath, ["scripts/build.mjs", "--env", "staging", "--out", join(tmp, "z")], {
       encoding: "utf8",
@@ -59,7 +74,7 @@ describe("build", () => {
 
 describe("env.js format", () => {
   it("round-trips through envModuleSource / parseEnvModule", () => {
-    const config = { name: "prod", sha: SHA, builtAt: "2026-11-17T10:00:00.000Z" };
+    const config = { name: "prod", sha: SHA, repo: "octo/site", builtAt: "2026-11-17T10:00:00.000Z" };
     assert.deepEqual(parseEnvModule(envModuleSource(config)), config);
   });
 

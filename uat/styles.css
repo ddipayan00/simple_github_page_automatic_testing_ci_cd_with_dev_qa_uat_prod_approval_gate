@@ -59,6 +59,7 @@ body {
 
 h1 { margin: 0 0 0.5rem; font-size: 1.75rem; }
 .lead { margin: 0 0 1.5rem; color: var(--muted); }
+.purpose { margin: 0 0 1rem; color: var(--accent); font-weight: 600; }
 
 .pipeline {
   list-style: none;
@@ -92,6 +93,7 @@ h1 { margin: 0 0 0.5rem; font-size: 1.75rem; }
 .meta { display: flex; gap: 2rem; margin: 0; }
 .meta dt { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; }
 .meta dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.meta a[href] { color: var(--accent); }
 
 .footer {
   margin-top: auto;

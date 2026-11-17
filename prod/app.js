@@ -3,14 +3,14 @@ import { ENV } from "./env.js";
 // Promotion order. `gated` is display-only: the real approval gate is the
 // required-reviewer rule on the GitHub environment (scripts/setup-github.sh).
 export const ENVIRONMENTS = Object.freeze([
-  { name: "dev", label: "Development", gated: false },
-  { name: "qa", label: "QA", gated: true },
-  { name: "uat", label: "UAT", gated: true },
-  { name: "prod", label: "Production", gated: true },
+  { name: "dev", label: "Development", gated: false, purpose: "Latest main, deployed on every merge" },
+  { name: "qa", label: "QA", gated: true, purpose: "Testing by the QA team" },
+  { name: "uat", label: "UAT", gated: true, purpose: "Business sign-off before release" },
+  { name: "prod", label: "Production", gated: true, purpose: "Live for everyone" },
 ]);
 
 // Elements render() fills in; tests check index.html provides all of them.
-export const ELEMENT_IDS = Object.freeze(["env-badge", "title", "commit", "built-at", "pipeline"]);
+export const ELEMENT_IDS = Object.freeze(["env-badge", "purpose", "title", "commit", "built-at", "pipeline"]);
 
 export function findEnvironment(name) {
   return ENVIRONMENTS.find((env) => env.name === name) ?? null;
@@ -24,6 +24,13 @@ export function formatBuildTime(iso) {
   const date = new Date(iso ?? "");
   if (!iso || Number.isNaN(date.getTime())) return "not built";
   return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
+export function commitUrl(env) {
+  const { repo, sha } = env ?? {};
+  if (typeof repo !== "string" || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return null;
+  if (typeof sha !== "string" || !/^[0-9a-f]{7,40}$/i.test(sha)) return null;
+  return `https://github.com/${repo}/commit/${sha}`;
 }
 
 export function pageTitle(env) {
@@ -46,9 +53,12 @@ export function render(doc, env) {
   doc.documentElement.dataset.env = current ? current.name : "local";
   doc.title = `${pageTitle(env)} · CI/CD demo`;
   byId("env-badge").textContent = current ? current.label : "Local preview";
+  byId("purpose").textContent = current ? current.purpose : "Local preview, not deployed";
   byId("title").textContent = pageTitle(env);
   byId("commit").textContent = shortSha(env?.sha);
   byId("built-at").textContent = formatBuildTime(env?.builtAt);
+  const url = commitUrl(env);
+  if (url) byId("commit").setAttribute("href", url);
 
   const steps = pipelineSteps(current?.name).map((step) => {
     const li = doc.createElement("li");

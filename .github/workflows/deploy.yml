@@ -1,0 +1,52 @@
+name: Deploy
+
+# Reusable: build → publish to gh-pages/<env>/ → smoke-test the live URL.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: dev | qa | uat | prod
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    # Approval gate: if this GitHub environment has required reviewers,
+    # the job waits here until one of them approves.
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.url.outputs.page_url }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    env:
+      TARGET_ENV: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Resolve page URL
+        id: url
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "page_url=https://${owner}.github.io/${GITHUB_REPOSITORY#*/}/${TARGET_ENV}/" >> "$GITHUB_OUTPUT"
+
+      - name: Build for ${{ inputs.environment }}
+        run: node scripts/build.mjs --env "$TARGET_ENV" --sha "$GITHUB_SHA" --out dist
+
+      - name: Publish to gh-pages/${{ inputs.environment }}
+        run: bash scripts/deploy-gh-pages.sh dist "$TARGET_ENV"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke test live site
+        run: node scripts/smoke-test.mjs --url "$PAGE_URL" --env "$TARGET_ENV" --sha "$GITHUB_SHA"
+        env:
+          PAGE_URL: ${{ steps.url.outputs.page_url }}

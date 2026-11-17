@@ -1,0 +1,15 @@
+{
+  "name": "simple-github-page-ci-cd",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A simple GitHub Pages site with automated tests and a dev → qa → uat → prod pipeline gated by manual approvals.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"tests/*.test.mjs\"",
+    "build": "node scripts/build.mjs --env dev --out dist",
+    "preview": "python3 -m http.server 8080 --directory site"
+  }
+}

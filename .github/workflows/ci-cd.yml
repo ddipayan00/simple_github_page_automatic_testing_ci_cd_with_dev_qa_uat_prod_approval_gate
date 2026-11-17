@@ -1,0 +1,76 @@
+name: CI/CD
+
+# Pull requests: tests only.
+# Push to main:  test → dev (auto) → qa 🔒 → uat 🔒 → prod 🔒
+# 🔒 = the job pauses until a required reviewer of that GitHub environment approves it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A new commit on a PR cancels that PR's older run; every push to main gets its own run.
+concurrency:
+  group: ci-cd-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Unit, HTML, build, deploy-script and pipeline tests
+        run: npm test
+
+      - name: Build every environment
+        run: |
+          for env in dev qa uat prod; do
+            node scripts/build.mjs --env "$env" --sha "$GITHUB_SHA" --out "dist/$env"
+          done
+
+  deploy-dev:
+    name: Dev
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: write
+    with:
+      environment: dev
+
+  deploy-qa:
+    name: QA
+    needs: deploy-dev
+    uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: write
+    with:
+      environment: qa
+
+  deploy-uat:
+    name: UAT
+    needs: deploy-qa
+    uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: write
+    with:
+      environment: uat
+
+  deploy-prod:
+    name: Prod
+    needs: deploy-uat
+    uses: ./.github/workflows/deploy.yml
+    permissions:
+      contents: write
+    with:
+      environment: prod

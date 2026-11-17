@@ -42,6 +42,10 @@ describe("environments", () => {
     assert.deepEqual(ENVIRONMENTS.filter((e) => !e.gated).map((e) => e.name), ["dev"]);
   });
 
+  it("every environment says what it is for", () => {
+    for (const env of ENVIRONMENTS) assert.ok(env.purpose?.length > 0, `${env.name} has no purpose`);
+  });
+
   it("finds known environments and returns null for unknown ones", () => {
     assert.equal(findEnvironment("uat").label, "UAT");
     assert.equal(findEnvironment("staging"), null);
@@ -116,6 +120,7 @@ describe("render", () => {
     assert.equal(doc.documentElement.dataset.env, "uat");
     assert.equal(doc.title, "Hello from UAT · CI/CD demo");
     assert.equal(doc.elements["env-badge"].textContent, "UAT");
+    assert.equal(doc.elements.purpose.textContent, "Business sign-off before release");
     assert.equal(doc.elements.title.textContent, "Hello from UAT");
     assert.equal(doc.elements.commit.textContent, "abcdef1");
     assert.equal(doc.elements["built-at"].textContent, "2026-11-17 08:00 UTC");
@@ -134,6 +139,7 @@ describe("render", () => {
 
     assert.equal(doc.documentElement.dataset.env, "local");
     assert.equal(doc.elements["env-badge"].textContent, "Local preview");
+    assert.equal(doc.elements.purpose.textContent, "Local preview, not deployed");
     assert.equal(doc.elements.commit.textContent, "local");
     assert.equal(doc.elements["built-at"].textContent, "not built");
     assert.equal(doc.elements.commit.attributes.href, undefined, "a local preview has nothing to link to");

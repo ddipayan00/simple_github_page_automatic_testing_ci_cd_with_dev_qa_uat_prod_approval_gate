@@ -59,6 +59,7 @@ body {
 
 h1 { margin: 0 0 0.5rem; font-size: 1.75rem; }
 .lead { margin: 0 0 1.5rem; color: var(--muted); }
+.purpose { margin: 0 0 1rem; color: var(--accent); font-weight: 600; }
 
 .pipeline {
   list-style: none;

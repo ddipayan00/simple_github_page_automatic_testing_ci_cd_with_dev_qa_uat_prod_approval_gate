@@ -2,7 +2,8 @@
 // Builds the site for one environment: copies site/ to the output folder and
 // writes env.js with the environment name, commit SHA and build time.
 //
-//   node scripts/build.mjs --env dev [--sha <commit>] [--out dist]
+//   node scripts/build.mjs --env dev [--sha <commit>] [--repo owner/name] [--out dist]
+// --repo defaults to $GITHUB_REPOSITORY, which GitHub Actions sets.
 import { cp, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -21,13 +22,14 @@ export function parseEnvModule(source) {
   return JSON.parse(match[1]);
 }
 
-export async function build({ env, sha = "", out = "dist", builtAt = new Date().toISOString() }) {
+export async function build({ env, sha = "", repo = "", out = "dist", builtAt = new Date().toISOString() }) {
   if (!ENVIRONMENTS.some((e) => e.name === env)) {
     throw new Error(`Unknown environment "${env}". Expected one of: ${ENVIRONMENTS.map((e) => e.name).join(", ")}`);
   }
   if (sha && !/^[0-9a-f]{7,40}$/i.test(sha)) throw new Error(`Invalid commit SHA "${sha}"`);
+  if (repo && !/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`Invalid repository "${repo}"`);
 
-  const config = { name: env, sha, builtAt };
+  const config = { name: env, sha, repo, builtAt };
   await rm(out, { recursive: true, force: true });
   await cp(SITE_DIR, out, { recursive: true });
   await writeFile(join(out, "env.js"), envModuleSource(config));
@@ -36,7 +38,12 @@ export async function build({ env, sha = "", out = "dist", builtAt = new Date().
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { values } = parseArgs({
-    options: { env: { type: "string" }, sha: { type: "string" }, out: { type: "string" } },
+    options: {
+      env: { type: "string" },
+      sha: { type: "string" },
+      repo: { type: "string", default: process.env.GITHUB_REPOSITORY ?? "" },
+      out: { type: "string" },
+    },
   });
   try {
     const config = await build(values);

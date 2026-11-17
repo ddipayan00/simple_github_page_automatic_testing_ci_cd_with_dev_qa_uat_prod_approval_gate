@@ -1,6 +1,8 @@
 name: Deploy
 
-# Reusable: build → publish to gh-pages/<env>/ → smoke-test the live URL.
+# Reusable, one environment:
+#   supersede older runs waiting at this gate → approval gate → build →
+#   publish to gh-pages/<env>/ → smoke-test the live URL.
 on:
   workflow_call:
     inputs:
@@ -8,10 +10,39 @@ on:
         description: dev | qa | uat | prod
         required: true
         type: string
+    outputs:
+      published:
+        description: "'true' when this commit is live; 'false' when a newer commit already was"
+        value: ${{ jobs.deploy.outputs.published }}
 
 jobs:
+  # Latest commit wins: before this run queues at the gate, cancel any older run
+  # still waiting there, so you only ever approve the newest commit.
+  supersede:
+    name: Supersede older ${{ inputs.environment }} deploys
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write   # cancel older workflow runs
+      contents: read
+    env:
+      TARGET_ENV: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # full history, to tell older commits from newer ones
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Cancel older runs waiting at this gate
+        run: node scripts/supersede.mjs --env "$TARGET_ENV"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   deploy:
     name: Deploy to ${{ inputs.environment }}
+    needs: supersede
     runs-on: ubuntu-latest
     # Approval gate: if this GitHub environment has required reviewers,
     # the job waits here until one of them approves.
@@ -23,10 +54,14 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write
+    outputs:
+      published: ${{ steps.publish.outputs.published }}
     env:
       TARGET_ENV: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # full history for the "never deploy an older commit" check
 
       - uses: actions/setup-node@v5
         with:
@@ -42,11 +77,13 @@ jobs:
         run: node scripts/build.mjs --env "$TARGET_ENV" --sha "$GITHUB_SHA" --out dist
 
       - name: Publish to gh-pages/${{ inputs.environment }}
+        id: publish
         run: bash scripts/deploy-gh-pages.sh dist "$TARGET_ENV"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Smoke test live site
+        if: steps.publish.outputs.published == 'true'
         run: node scripts/smoke-test.mjs --url "$PAGE_URL" --env "$TARGET_ENV" --sha "$GITHUB_SHA"
         env:
           PAGE_URL: ${{ steps.url.outputs.page_url }}

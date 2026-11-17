@@ -10,7 +10,7 @@ push to main
 ┌────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
 │  Test  │──▶│   DEV    │──▶│  QA  🔒  │──▶│  UAT 🔒  │──▶│ PROD 🔒  │
 └────────┘   └──────────┘   └──────────┘   └──────────┘   └──────────┘
- 53 tests     auto-deploy    you approve    you approve    you approve
+ all tests    auto-deploy    you approve    you approve    you approve
               + smoke test   + smoke test   + smoke test   + smoke test
 ```
 
@@ -59,10 +59,29 @@ If someone else merges first, your PR shows **out of date** and cannot merge unt
 you bring in the new `main` (`gh pr update-branch`) and Test passes again. That way
 every commit on `main` was tested together with everything merged before it.
 
-Each merge starts the pipeline. Merges close together are promoted as one release:
-dev always ends up on the latest `main`, and at each gate you approve the newest
-commit waiting there, which includes every feature merged before it. Rejecting at a
-gate stops that run only; to take a feature out, revert its squash commit in a new PR.
+Each merge starts the pipeline. Merges close together are promoted as one release.
+Rejecting at a gate stops that run only; to take a feature out, revert its squash
+commit in a new PR.
+
+## Latest commit wins
+
+When several commits are merged in a row, you never have to approve or reject stale ones:
+
+- **Supersede at each gate.** Just before a run reaches an environment, `scripts/supersede.mjs`
+  cancels older runs that are still waiting for approval there (or queued behind it).
+  The gate then shows only the newest commit, which contains every older one.
+- **Other gates are left alone.** A commit waiting at prod is only replaced once a newer
+  commit has itself passed uat, so frequent merges cannot keep restarting a release.
+  Deploys already in progress are never cancelled.
+- **Never backwards.** A deploy that finds a newer commit already live in its environment
+  (e.g. you re-ran an old pipeline) publishes nothing, and that run stops there.
+- **Landing page ships with prod only**, so an older deploy elsewhere cannot roll it back.
+
+```
+merge C1, then C2:   C1 ── waiting at UAT 🔒
+                     C2 ── QA ✓ ── reaches UAT → C1 cancelled ("superseded by C2")
+                     you approve C2 once: it carries C1 and C2
+```
 
 ## Test cases
 
@@ -74,7 +93,8 @@ gate stops that run only; to take a feature out, revert its squash commit in a n
 | `tests/site.test.mjs` | HTML metadata (doctype, lang, viewport, title, description), every element the script needs exists once, all linked files exist, no `http://` links, one colour per environment, landing page links every env |
 | `tests/build.test.mjs` | each environment builds with the correct `env.js`; stale files are removed; unknown envs and bad SHAs are rejected |
 | `tests/smoke.test.mjs` | the post-deploy smoke test passes on a good deploy and fails on old commit, wrong env, unpublished site or missing asset; it retries while Pages is still publishing |
-| `tests/deploy.test.mjs` | the gh-pages publisher, against a local bare repo: deploying one env never wipes another, and history is never rewritten |
+| `tests/deploy.test.mjs` | the gh-pages publisher, against a local bare repo: deploying one env never wipes another, an older commit never replaces a newer one, only prod publishes the landing page, history is never rewritten |
+| `tests/supersede.test.mjs` | latest-commit-wins: cancels older runs waiting or queued at the same gate, never newer commits, other gates, or deploys in progress |
 | `tests/pipeline.test.mjs` | the workflows: tests run before deploys, nothing deploys from PRs, promotion order is dev → qa → uat → prod, approval gates match the page, prod is always gated |
 
 After every deploy, `scripts/smoke-test.mjs` also runs **against the live URL**: it
@@ -110,6 +130,7 @@ hub/index.html            landing page at the gh-pages root
 scripts/build.mjs         builds the site for one environment
 scripts/deploy-gh-pages.sh   publishes a build into gh-pages/<env>/
 scripts/smoke-test.mjs    post-deploy check against the live URL
+scripts/supersede.mjs     cancels older runs waiting at a gate (latest commit wins)
 scripts/setup-github.sh   one-time setup: environments, approval gates, Pages, main protection
 .github/workflows/ci-cd.yml  the pipeline
 .github/workflows/deploy.yml reusable deploy job (build → publish → smoke test)

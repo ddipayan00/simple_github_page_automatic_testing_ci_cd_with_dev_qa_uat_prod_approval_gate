@@ -3,6 +3,8 @@ name: CI/CD
 # Pull requests: tests only.
 # Push to main:  test → dev (auto) → qa 🔒 → uat 🔒 → prod 🔒
 # 🔒 = the job pauses until a required reviewer of that GitHub environment approves it.
+# Latest commit wins: when a newer commit reaches a gate, older runs still waiting
+# there are cancelled, and an older commit never replaces a newer one that is live.
 on:
   push:
     branches: [main]
@@ -44,33 +46,40 @@ jobs:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/deploy.yml
     permissions:
-      contents: write
+      actions: write    # cancel older runs at the gate (supersede)
+      contents: write   # push to gh-pages
     with:
       environment: dev
 
   deploy-qa:
     name: QA
     needs: deploy-dev
+    if: needs.deploy-dev.outputs.published == 'true'   # stop if a newer commit was already live
     uses: ./.github/workflows/deploy.yml
     permissions:
-      contents: write
+      actions: write    # cancel older runs at the gate (supersede)
+      contents: write   # push to gh-pages
     with:
       environment: qa
 
   deploy-uat:
     name: UAT
     needs: deploy-qa
+    if: needs.deploy-qa.outputs.published == 'true'   # stop if a newer commit was already live
     uses: ./.github/workflows/deploy.yml
     permissions:
-      contents: write
+      actions: write    # cancel older runs at the gate (supersede)
+      contents: write   # push to gh-pages
     with:
       environment: uat
 
   deploy-prod:
     name: Prod
     needs: deploy-uat
+    if: needs.deploy-uat.outputs.published == 'true'   # stop if a newer commit was already live
     uses: ./.github/workflows/deploy.yml
     permissions:
-      contents: write
+      actions: write    # cancel older runs at the gate (supersede)
+      contents: write   # push to gh-pages
     with:
       environment: prod

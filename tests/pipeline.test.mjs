@@ -42,7 +42,15 @@ describe("ci-cd.yml", () => {
       assert.match(block, new RegExp(`environment: ${name}\\n`), `deploy-${name} targets the wrong environment`);
       assert.match(block, /uses: \.\/\.github\/workflows\/deploy\.yml/);
       assert.match(block, /contents: write/);
+      assert.match(block, /actions: write/, `deploy-${name} cannot cancel superseded runs`);
       if (i > 0) assert.match(block, new RegExp(`needs: deploy-${ENVIRONMENTS[i - 1].name}\\n`));
+    });
+  });
+
+  it("stops promoting a commit once a newer one was already live", () => {
+    ENVIRONMENTS.slice(1).forEach(({ name }, i) => {
+      const prev = ENVIRONMENTS[i].name;
+      assert.match(job(pipeline, `deploy-${name}`), new RegExp(`if: needs\\.deploy-${prev}\\.outputs\\.published == 'true'`));
     });
   });
 });
@@ -61,6 +69,24 @@ describe("deploy.yml", () => {
 
   it("never runs two deploys to the same environment at once", () => {
     assert.match(deploy, /group: deploy-\$\{\{ inputs\.environment \}\}\n\s*cancel-in-progress: false/);
+  });
+
+  it("cancels older runs waiting at the gate before this run enters it", () => {
+    const supersede = job(deploy, "supersede");
+    assert.match(supersede, /run: node scripts\/supersede\.mjs --env "\$TARGET_ENV"/);
+    assert.match(supersede, /actions: write/);
+    assert.match(supersede, /fetch-depth: 0/);
+    assert.doesNotMatch(supersede, /environment:\s*\n\s*name:/, "supersede must run before the gate, not behind it");
+    assert.match(job(deploy, "deploy"), /needs: supersede\n/);
+  });
+
+  it("has the full history it needs to compare commits, and only smoke-tests what it published", () => {
+    const deployJob = job(deploy, "deploy");
+    assert.match(deployJob, /fetch-depth: 0/);
+    assert.match(deployJob, /id: publish\n/);
+    assert.match(deployJob, /published: \$\{\{ steps\.publish\.outputs\.published \}\}/);
+    assert.match(deployJob, /- name: Smoke test live site\n\s*if: steps\.publish\.outputs\.published == 'true'/);
+    assert.match(deploy, /value: \$\{\{ jobs\.deploy\.outputs\.published \}\}/);
   });
 });
 

@@ -41,6 +41,29 @@ so when the pipeline reaches one of them it pauses and GitHub notifies you. Open
 To change which environments are gated, edit `GATED_ENVS` in `scripts/setup-github.sh`
 and the `gated` flags in `site/app.js` (a test fails if they disagree), then re-run the script.
 
+## Feature branch workflow (trunk-based)
+
+`main` is the trunk and is protected: it only changes through a pull request, the
+**Test** check must pass on a branch that is up to date with `main`, and PRs are
+squash-merged (one commit per feature). Direct and force pushes are blocked.
+
+```bash
+git switch -c feature/my-change main     # short-lived: hours, not weeks
+# ...commit...
+git push -u origin feature/my-change
+gh pr create --fill                      # Test runs on the PR (nothing deploys)
+gh pr merge --squash --delete-branch     # once Test is green
+```
+
+If someone else merges first, your PR shows **out of date** and cannot merge until
+you bring in the new `main` (`gh pr update-branch`) and Test passes again. That way
+every commit on `main` was tested together with everything merged before it.
+
+Each merge starts the pipeline. Merges close together are promoted as one release:
+dev always ends up on the latest `main`, and at each gate you approve the newest
+commit waiting there, which includes every feature merged before it. Rejecting at a
+gate stops that run only; to take a feature out, revert its squash commit in a new PR.
+
 ## Test cases
 
 `npm test` runs all of these with Node's built-in test runner (no dependencies):
@@ -64,7 +87,7 @@ The repository must be **public** (approvals and Pages are free on public repos)
 
 ```bash
 git push -u origin main          # first push starts the pipeline
-scripts/setup-github.sh          # run right away: environments, approvals, Pages
+scripts/setup-github.sh          # run right away: environments, approvals, Pages, main protection
 ```
 
 The first push is safe to make before the setup: the dev deploy cannot pass its
@@ -87,7 +110,7 @@ hub/index.html            landing page at the gh-pages root
 scripts/build.mjs         builds the site for one environment
 scripts/deploy-gh-pages.sh   publishes a build into gh-pages/<env>/
 scripts/smoke-test.mjs    post-deploy check against the live URL
-scripts/setup-github.sh   one-time environments + approval gates + Pages setup
+scripts/setup-github.sh   one-time setup: environments, approval gates, Pages, main protection
 .github/workflows/ci-cd.yml  the pipeline
 .github/workflows/deploy.yml reusable deploy job (build → publish → smoke test)
 tests/                    the test cases

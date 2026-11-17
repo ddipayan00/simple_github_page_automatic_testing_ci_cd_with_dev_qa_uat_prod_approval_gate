@@ -72,6 +72,13 @@ describe("approval gates", () => {
     assert.deepEqual(gated, ENVIRONMENTS.filter((e) => e.gated).map((e) => e.name));
   });
 
+  it("branch protection requires the check that ci-cd.yml actually produces", () => {
+    const required = /^REQUIRED_CHECK="([^"]+)"/m.exec(setup)?.[1];
+    assert.ok(required, "REQUIRED_CHECK not found in setup-github.sh");
+    // If these drift apart, every PR would wait forever for a check that never runs.
+    assert.match(job(pipeline, "test"), new RegExp(`\\n {4}name: ${required}\\n`));
+  });
+
   it("production always requires approval", () => {
     assert.equal(ENVIRONMENTS.find((e) => e.name === "prod").gated, true);
   });

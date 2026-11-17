@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-env="local">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A simple GitHub Pages site promoted through dev, QA, UAT and prod with automated tests and approval gates.">
+  <title>CI/CD demo</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="banner">
+    <span id="env-badge">Local preview</span>
+  </header>
+
+  <main class="card">
+    <h1 id="title">Hello from local</h1>
+    <p class="lead">
+      This page is tested automatically on every change and promoted through four
+      environments. Each step after dev waits for a manual approval.
+    </p>
+
+    <ol id="pipeline" class="pipeline" aria-label="Release pipeline"></ol>
+
+    <dl class="meta">
+      <div><dt>Commit</dt><dd id="commit">local</dd></div>
+      <div><dt>Built</dt><dd id="built-at">not built</dd></div>
+    </dl>
+  </main>
+
+  <footer class="footer">
+    Deployed with GitHub Actions &middot; <a href="../">all environments</a>
+  </footer>
+</body>
+</html>
